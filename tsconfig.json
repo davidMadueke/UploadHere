@@ -1,0 +1,3 @@
+{
+  "extends": "@uploadhere/config/tsconfig.base.json"
+}
