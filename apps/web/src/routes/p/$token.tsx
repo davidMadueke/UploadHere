@@ -18,6 +18,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@uploadhere/ui
 import { Input } from "@uploadhere/ui/components/input";
 import { Label } from "@uploadhere/ui/components/label";
 import { Spinner } from "@uploadhere/ui/components/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uploadhere/ui/components/tabs";
+import { cn } from "@uploadhere/ui/lib/utils";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DownloadIcon, FileAudioIcon, PencilIcon, PlayIcon, Trash2Icon } from "lucide-react";
@@ -31,6 +33,7 @@ import { NameDialog } from "@/components/name-dialog";
 import { NowPlayingBar } from "@/components/now-playing-bar";
 import { TrackRow } from "@/components/track-row";
 import { UploadProgress } from "@/components/upload-progress";
+import { YoutubeLinkField } from "@/components/youtube-link-field";
 import {
   getPerformerTrackUrl,
   prepareNewTrack,
@@ -39,6 +42,7 @@ import {
   renameTrack,
   saveNewTrack,
   saveReplacement,
+  saveYoutubeTrack,
 } from "@/functions/performer";
 import { useLinkMutation } from "@/hooks/use-link-mutation";
 import { errorMessage, useTrackAudio } from "@/hooks/use-track-audio";
@@ -85,7 +89,12 @@ function PerformerPage() {
   if (!page) return <LinkNotFound kind="Performer" />;
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 pb-32">
+    <main
+      className={cn(
+        "mx-auto w-full min-w-0 max-w-2xl space-y-6 px-4 py-8",
+        audio.nowPlaying?.youtubeVideoId ? "pb-96" : "pb-32",
+      )}
+    >
       <section className="space-y-1">
         <p className="text-xs tracking-wide text-muted-foreground uppercase">{page.gigName}</p>
         <h1 className="font-heading text-2xl font-semibold break-words">{page.performerName}</h1>
@@ -118,17 +127,34 @@ function PerformerPage() {
                     <IconAction
                       label={`Preview ${track.name}`}
                       loading={audio.loadingTrackId === track.id}
-                      onClick={() => audio.play(track, track.filename)}
+                      onClick={() =>
+                        audio.play(track, track.source === "file" ? track.filename : "YouTube")
+                      }
                     >
                       <PlayIcon />
                     </IconAction>
-                    <IconAction label={`Download ${track.name}`} onClick={() => audio.download(track.id)}>
+                    <IconAction
+                      label={
+                        track.source === "youtube"
+                          ? "YouTube Tracks can't be downloaded"
+                          : `Download ${track.name}`
+                      }
+                      disabled={track.source === "youtube"}
+                      onClick={() => audio.download(track.id)}
+                    >
                       <DownloadIcon />
                     </IconAction>
                     <IconAction label={`Rename ${track.name}`} onClick={() => setRenaming(track)}>
                       <PencilIcon />
                     </IconAction>
-                    <IconAction label={`Replace the file for ${track.name}`} onClick={() => setReplacing(track)}>
+                    <IconAction
+                      label={
+                        track.source === "youtube"
+                          ? `Replace the YouTube video for ${track.name}`
+                          : `Replace the file for ${track.name}`
+                      }
+                      onClick={() => setReplacing(track)}
+                    >
                       <FileAudioIcon />
                     </IconAction>
                     <IconAction label={`Remove ${track.name}`} onClick={() => setRemoving(track)}>
@@ -157,7 +183,11 @@ function PerformerPage() {
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}
         title={`Remove ${removing?.name ?? "Track"}?`}
-        description="This deletes the Track and its file. It can't be undone."
+        description={
+          removing?.source === "youtube"
+            ? "This deletes the Track. It can't be undone."
+            : "This deletes the Track and its file. It can't be undone."
+        }
         confirmLabel="Remove Track"
         pending={remove.isPending}
         onConfirm={() => removing && remove.mutate(removing.id)}
@@ -171,11 +201,13 @@ function PerformerPage() {
 function IconAction({
   label,
   loading,
+  disabled,
   onClick,
   children,
 }: {
   label: string;
   loading?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -185,7 +217,7 @@ function IconAction({
       size="icon-sm"
       aria-label={label}
       title={label}
-      disabled={loading}
+      disabled={disabled || loading}
       onClick={onClick}
     >
       {loading ? <Spinner /> : children}
@@ -196,14 +228,24 @@ function IconAction({
 function AddTrackCard({ token, tracks }: { token: string; tracks: TrackView[] }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
+  const [mode, setMode] = useState<"file" | "youtube">("file");
   const [file, setFile] = useState<File | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [savingYoutube, setSavingYoutube] = useState(false);
 
   const trimmed = name.trim();
   const taken = tracks.some((track) => sameName(track.name, trimmed));
   const uploading = progress !== null;
+  const busy = uploading || savingYoutube;
+  const canSubmit =
+    !!trimmed &&
+    !taken &&
+    !busy &&
+    (mode === "file" ? !!file : !!youtubeVideoId);
 
-  async function upload() {
+  async function uploadFile() {
     if (!file || !trimmed || taken) return;
     setProgress(0);
     try {
@@ -223,12 +265,29 @@ function AddTrackCard({ token, tracks }: { token: string; tracks: TrackView[] })
     }
   }
 
+  async function addYoutube() {
+    if (!youtubeVideoId || !trimmed || taken) return;
+    setSavingYoutube(true);
+    try {
+      await saveYoutubeTrack({ data: { token, name: trimmed, url: youtubeUrl.trim() } });
+      toast.success(`Added "${trimmed}"`);
+      setName("");
+      setYoutubeUrl("");
+      setYoutubeVideoId(null);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setSavingYoutube(false);
+      await queryClient.invalidateQueries({ queryKey: performerPageQuery(token).queryKey });
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Add a Track</CardTitle>
         <CardDescription>
-          Give it a name the Host will recognise, then choose the file.
+          Give it a name the Host will recognise, then upload a file or paste a YouTube link.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -236,7 +295,8 @@ function AddTrackCard({ token, tracks }: { token: string; tracks: TrackView[] })
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void upload();
+            if (mode === "file") void uploadFile();
+            else void addYoutube();
           }}
         >
           <div className="space-y-2">
@@ -246,7 +306,7 @@ function AddTrackCard({ token, tracks }: { token: string; tracks: TrackView[] })
               value={name}
               maxLength={NAME_MAX_LENGTH}
               placeholder="Opening song backing"
-              disabled={uploading}
+              disabled={busy}
               aria-invalid={taken || undefined}
               onChange={(event) => setName(event.target.value)}
             />
@@ -254,10 +314,47 @@ function AddTrackCard({ token, tracks }: { token: string; tracks: TrackView[] })
               <p className="text-xs text-destructive">You already have a Track with that name.</p>
             ) : null}
           </div>
-          <AudioUploadField inputId="track-file" file={file} onFileChange={setFile} disabled={uploading} />
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              if (value === "file" || value === "youtube") setMode(value);
+            }}
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="file" disabled={busy} className="flex-1">
+                Upload a file
+              </TabsTrigger>
+              <TabsTrigger value="youtube" disabled={busy} className="flex-1">
+                YouTube link
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="file" className="pt-4">
+              <AudioUploadField
+                inputId="track-file"
+                file={file}
+                onFileChange={setFile}
+                disabled={busy}
+              />
+            </TabsContent>
+            <TabsContent value="youtube" className="pt-4">
+              <YoutubeLinkField
+                token={token}
+                value={youtubeUrl}
+                onChange={setYoutubeUrl}
+                onVideoId={setYoutubeVideoId}
+                disabled={busy}
+              />
+            </TabsContent>
+          </Tabs>
           {uploading ? <UploadProgress fraction={progress} /> : null}
-          <Button type="submit" className="w-full" disabled={!file || !trimmed || taken || uploading}>
-            {uploading ? "Uploading…" : "Upload Track"}
+          <Button type="submit" className="w-full" disabled={!canSubmit}>
+            {mode === "file"
+              ? uploading
+                ? "Uploading…"
+                : "Upload Track"
+              : savingYoutube
+                ? "Adding…"
+                : "Add Track"}
           </Button>
         </form>
       </CardContent>
@@ -315,7 +412,9 @@ function ReplaceFileDialog({
           <DialogTitle>Replace the file</DialogTitle>
           <DialogDescription>
             {track
-              ? `"${track.name}" keeps its name. The new file takes the place of ${track.filename}.`
+              ? track.source === "youtube"
+                ? `"${track.name}" keeps its name. The new file takes the place of the YouTube video.`
+                : `"${track.name}" keeps its name. The new file takes the place of ${track.filename}.`
               : null}
           </DialogDescription>
         </DialogHeader>

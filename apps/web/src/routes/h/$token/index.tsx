@@ -10,6 +10,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@uploadhere/ui/components/empty";
 import { Input } from "@uploadhere/ui/components/input";
 import { Label } from "@uploadhere/ui/components/label";
+import { Separator } from "@uploadhere/ui/components/separator";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import {
@@ -72,7 +73,7 @@ function HostPage() {
   if (!gig) return <LinkNotFound kind="Host" />;
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
+    <main className="mx-auto w-full min-w-0 max-w-3xl space-y-6 px-4 py-8">
       {created ? (
         <SaveHostLinkNotice
           token={token}
@@ -80,19 +81,20 @@ function HostPage() {
         />
       ) : null}
 
-      <section className="flex flex-wrap items-end justify-between gap-4">
+      <section className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs tracking-wide text-muted-foreground uppercase">Gig</p>
           <h1 className="font-heading text-2xl font-semibold break-words">{gig.name}</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setRenaming(true)}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setRenaming(true)}>
             <PencilIcon data-icon="inline-start" />
             Rename
           </Button>
-          <CopyLinkButton path={`/h/${token}`} label="Copy Host link" />
+          <CopyLinkButton path={`/h/${token}`} label="Copy Host link" className="w-full sm:w-auto" />
           <Button
             size="sm"
+            className="w-full sm:w-auto"
             nativeButton={false}
             render={<Link to="/h/$token/play" params={{ token }} />}
           >
@@ -129,10 +131,10 @@ function SaveHostLinkNotice({ token, onDismiss }: { token: string; onDismiss: ()
   return (
     <Card className="ring-2 ring-primary/50">
       <CardHeader>
-        <CardTitle>Save your Host link now</CardTitle>
+        <CardTitle>Your Host link</CardTitle>
         <CardDescription>
-          It is the only way back to this Gig. There is no account and no list of Gigs, so if
-          you lose this link, the Gig is gone.
+          This link opens the Gig directly. Every Gig is also listed on the home page, so you
+          can get back from there.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -185,7 +187,7 @@ function AddPerformerForm({ token, gig }: { token: string; gig: HostGig }) {
               </p>
             ) : null}
           </div>
-          <Button type="submit" disabled={!trimmed || taken || add.isPending}>
+          <Button type="submit" className="w-full sm:w-auto" disabled={!trimmed || taken || add.isPending}>
             Add
           </Button>
         </form>
@@ -296,15 +298,18 @@ function PerformerCard({
     <li>
       <Card size="sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-3">
+          
+          <CardTitle className="flex w-ful items-center gap-3">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs tabular-nums">
               {position}
             </span>
-            <span className="min-w-0 break-words">{performer.name}</span>
-          </CardTitle>
-          <CardDescription>
+            <span className="min-w-0 font-bold break-words">{performer.name}</span>
+            <span className="border-border text-sm text-muted-foreground  ">
             {trackCount === 0 ? "No Tracks yet" : `${trackCount} Track${trackCount === 1 ? "" : "s"}`}
-          </CardDescription>
+            </span>
+
+          
+          </CardTitle>
           <CardAction className="flex gap-1">
             <Button
               variant="ghost"
@@ -328,29 +333,35 @@ function PerformerCard({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <CopyLinkButton path={performerPath} label="Copy Performer link" />
+          <Separator />
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <CopyLinkButton
+              path={performerPath}
+              label="Copy Performer link"
+              className="col-span-2 w-full sm:col-span-1 sm:w-auto"
+            />
             <Button
               variant="ghost"
               size="sm"
+              className="w-full sm:w-auto"
               nativeButton={false}
               render={<a href={performerPath} target="_blank" rel="noreferrer" />}
             >
               <ExternalLinkIcon data-icon="inline-start" />
               Open
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setRenaming(true)}>
+            <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setRenaming(true)}>
               <PencilIcon data-icon="inline-start" />
               Rename
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setRemoving(true)}>
+            <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setRemoving(true)}>
               <Trash2Icon data-icon="inline-start" />
               Remove
             </Button>
           </div>
 
           {trackCount > 0 ? (
-            <ul className="-mx-3">
+            <ul className="-mx-3 min-w-0">
               {performer.tracks.map((track) => (
                 <TrackRow
                   key={track.id}
@@ -359,7 +370,17 @@ function PerformerCard({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Download ${track.name}`}
+                      aria-label={
+                        track.source === "youtube"
+                          ? "YouTube Tracks can't be downloaded"
+                          : `Download ${track.name}`
+                      }
+                      title={
+                        track.source === "youtube"
+                          ? "YouTube Tracks can't be downloaded"
+                          : `Download ${track.name}`
+                      }
+                      disabled={track.source === "youtube"}
                       onClick={() => audio.download(track.id)}
                     >
                       <DownloadIcon />

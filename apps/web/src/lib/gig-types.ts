@@ -1,10 +1,20 @@
+/** A Gig as the home page lists it. The Host link is included because this version has no accounts. */
+export type GigListItem = {
+  id: string;
+  name: string;
+  hostToken: string;
+  createdAt: string;
+  performerCount: number;
+};
+
 export type TrackView = {
   id: string;
   name: string;
-  filename: string;
-  sizeBytes: number;
   updatedAt: string;
-};
+} & (
+  | { source: "file"; filename: string; sizeBytes: number; youtubeVideoId: null }
+  | { source: "youtube"; filename: null; sizeBytes: null; youtubeVideoId: string }
+);
 
 export type HostPerformer = {
   id: string;

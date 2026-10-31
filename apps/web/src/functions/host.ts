@@ -6,6 +6,8 @@ import * as store from "@/server/store";
 
 // Every call is POST so link tokens travel in the body, not in server-function URLs.
 
+export const listGigs = createServerFn({ method: "GET" }).handler(() => store.listGigs());
+
 export const createGig = createServerFn({ method: "POST" })
   .validator(z.object({ name: nameSchema }))
   .handler(({ data }) => store.createGig(data.name));

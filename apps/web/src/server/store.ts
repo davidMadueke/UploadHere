@@ -9,10 +9,13 @@ import {
   audioExtension,
   formatFileSize,
 } from "@/lib/audio-file";
-import type { HostGig, PerformerPage, PreparedUpload, TrackView } from "@/lib/gig-types";
+import type { GigListItem, HostGig, PerformerPage, PreparedUpload, TrackView } from "@/lib/gig-types";
 import { sameName } from "@/lib/validation";
 
 import { hashLinkToken, newLinkToken } from "./link-token";
+import { checkYoutubeVideo } from "./youtube";
+
+const TRACK_COLUMNS = "id, name, filename, size_bytes, updated_at, source, youtube_video_id";
 
 const UNIQUE_VIOLATION = "23505";
 const RUNNING_ORDER_MISMATCH = "22023";
@@ -43,26 +46,58 @@ function failed(error: DbError, uniqueMessages: Record<string, string> = {}): ne
 const performerNameTaken = (name: string) => `There is already a Performer called "${name}" on this Gig.`;
 const trackNameTaken = (name: string) => `You already have a Track called "${name}".`;
 
-function toTrackViews(
-  rows: { id: string; name: string; filename: string; size_bytes: number; updated_at: string }[],
-): TrackView[] {
-  return rows
-    .map((row) => ({
+type TrackRow = {
+  id: string;
+  name: string;
+  filename: string | null;
+  size_bytes: number | null;
+  updated_at: string;
+  source: string;
+  youtube_video_id: string | null;
+};
+
+function toTrackView(row: TrackRow): TrackView | null {
+  if (row.source === "youtube") {
+    if (!row.youtube_video_id) return null;
+    return {
       id: row.id,
       name: row.name,
-      filename: row.filename,
-      sizeBytes: row.size_bytes,
       updatedAt: row.updated_at,
-    }))
+      source: "youtube",
+      filename: null,
+      sizeBytes: null,
+      youtubeVideoId: row.youtube_video_id,
+    };
+  }
+
+  if (!row.filename || row.size_bytes == null) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    updatedAt: row.updated_at,
+    source: "file",
+    filename: row.filename,
+    sizeBytes: row.size_bytes,
+    youtubeVideoId: null,
+  };
+}
+
+function toTrackViews(rows: TrackRow[]): TrackView[] {
+  return rows
+    .flatMap((row) => {
+      const view = toTrackView(row);
+      return view ? [view] : [];
+    })
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
-async function removeObjects(paths: string[]) {
-  if (paths.length === 0) return;
-  const { error } = await db().storage.from(TRACKS_BUCKET).remove(paths);
+async function removeObjects(paths: Array<string | null>) {
+  const existing = paths.filter((path): path is string => !!path);
+  if (existing.length === 0) return;
+  const { error } = await db().storage.from(TRACKS_BUCKET).remove(existing);
   if (error) {
     // The rows are already gone, so the Track is gone for every link. Log the leftover files.
-    console.error("[uploadhere] Could not remove Track files", paths, error);
+    console.error("[uploadhere] Could not remove Track files", existing, error);
   }
 }
 
@@ -76,11 +111,16 @@ async function signedTrackUrl(path: string, downloadAs: string | null) {
 
 // Host link
 
+/** Matches the Host link itself, or the hash kept for links created before the token was stored. */
+function gigTokenMatch(hostToken: string) {
+  return `host_token.eq.${hostToken},host_token_hash.eq.${hashLinkToken(hostToken)}`;
+}
+
 async function findGig(hostToken: string) {
   const { data, error } = await db()
     .from("gigs")
     .select("id, name")
-    .eq("host_token_hash", hashLinkToken(hostToken))
+    .or(gigTokenMatch(hostToken))
     .maybeSingle();
   if (error) failed(error);
   return data;
@@ -96,18 +136,35 @@ export async function createGig(name: string) {
   const hostToken = newLinkToken();
   const { error } = await db()
     .from("gigs")
-    .insert({ name, host_token_hash: hashLinkToken(hostToken) });
+    .insert({ name, host_token: hostToken, host_token_hash: hashLinkToken(hostToken) });
   if (error) failed(error);
   return { hostToken };
+}
+
+/** Every Gig, newest first. Public for this version: there is no account, so the home page is the way back. */
+export async function listGigs(): Promise<GigListItem[]> {
+  const { data, error } = await db()
+    .from("gigs")
+    .select("id, name, created_at, host_token, performers(id)")
+    .order("created_at", { ascending: false });
+  if (error) failed(error);
+
+  return data.map((gig) => ({
+    id: gig.id,
+    name: gig.name,
+    hostToken: gig.host_token,
+    createdAt: gig.created_at,
+    performerCount: gig.performers.length,
+  }));
 }
 
 export async function getHostGig(hostToken: string): Promise<HostGig | null> {
   const { data, error } = await db()
     .from("gigs")
     .select(
-      "id, name, performers(id, name, position, link_token, tracks(id, name, filename, size_bytes, updated_at))",
+      `id, name, performers(id, name, position, link_token, tracks(${TRACK_COLUMNS}))`,
     )
-    .eq("host_token_hash", hashLinkToken(hostToken))
+    .or(gigTokenMatch(hostToken))
     .maybeSingle();
   if (error) failed(error);
   if (!data) return null;
@@ -211,13 +268,13 @@ export async function hostTrackUrl(hostToken: string, trackId: string, download:
   const gig = await requireGig(hostToken);
   const { data, error } = await db()
     .from("tracks")
-    .select("storage_path, filename, performers!inner(gig_id)")
+    .select("storage_path, filename, source, performers!inner(gig_id)")
     .eq("id", trackId)
     .eq("performers.gig_id", gig.id)
     .maybeSingle();
   if (error) failed(error);
   if (!data) throw new Error(TRACK_GONE);
-  return signedTrackUrl(data.storage_path, download ? data.filename : null);
+  return fileTrackUrl(data, download);
 }
 
 // Performer link
@@ -238,7 +295,7 @@ type Performer = Awaited<ReturnType<typeof requirePerformer>>;
 export async function getPerformerPage(linkToken: string): Promise<PerformerPage | null> {
   const { data, error } = await db()
     .from("performers")
-    .select("name, gigs(name), tracks(id, name, filename, size_bytes, updated_at)")
+    .select(`name, gigs(name), tracks(${TRACK_COLUMNS})`)
     .eq("link_token", linkToken)
     .maybeSingle();
   if (error) failed(error);
@@ -265,7 +322,7 @@ async function ensureTrackNameFree(performerId: string, name: string, exceptTrac
 async function requireTrack(performer: Performer, trackId: string) {
   const { data, error } = await db()
     .from("tracks")
-    .select("id, storage_path, filename")
+    .select("id, storage_path, filename, source")
     .eq("id", trackId)
     .eq("performer_id", performer.id)
     .maybeSingle();
@@ -335,10 +392,12 @@ export async function saveNewTrack(
     .insert({
       performer_id: performer.id,
       name: input.name,
+      source: "file",
       filename: input.filename,
       content_type: file.contentType,
       size_bytes: file.sizeBytes,
       storage_path: input.path,
+      youtube_video_id: null,
     });
   if (error) {
     await removeObjects([input.path]);
@@ -370,10 +429,12 @@ export async function saveReplacement(
   const { error } = await db()
     .from("tracks")
     .update({
+      source: "file",
       filename: input.filename,
       content_type: file.contentType,
       size_bytes: file.sizeBytes,
       storage_path: input.path,
+      youtube_video_id: null,
     })
     .eq("id", track.id)
     .eq("performer_id", performer.id);
@@ -413,5 +474,47 @@ export async function removeTrack(linkToken: string, trackId: string) {
 export async function performerTrackUrl(linkToken: string, trackId: string, download: boolean) {
   const performer = await requirePerformer(linkToken);
   const track = await requireTrack(performer, trackId);
+  return fileTrackUrl(track, download);
+}
+
+function fileTrackUrl(
+  track: { source: string; storage_path: string | null; filename: string | null },
+  download: boolean,
+) {
+  if (track.source === "youtube" || !track.storage_path) {
+    throw new Error(
+      download
+        ? "YouTube Tracks can't be downloaded."
+        : "That Track plays from YouTube, not a file.",
+    );
+  }
   return signedTrackUrl(track.storage_path, download ? track.filename : null);
+}
+
+export async function previewYoutubeTrack(linkToken: string, url: string) {
+  await requirePerformer(linkToken);
+  return checkYoutubeVideo(url);
+}
+
+export async function saveYoutubeTrack(linkToken: string, input: { name: string; url: string }) {
+  const performer = await requirePerformer(linkToken);
+  const video = await checkYoutubeVideo(input.url);
+  if (!video.ok) {
+    throw new Error(
+      video.reason === "invalid" ? "That isn't a YouTube link." : "That video can't be loaded.",
+    );
+  }
+
+  await ensureTrackNameFree(performer.id, input.name);
+  const { error } = await db().from("tracks").insert({
+    performer_id: performer.id,
+    name: input.name,
+    source: "youtube",
+    youtube_video_id: video.videoId,
+    filename: null,
+    content_type: null,
+    size_bytes: null,
+    storage_path: null,
+  });
+  if (error) failed(error, { tracks_name_unique: trackNameTaken(input.name) });
 }

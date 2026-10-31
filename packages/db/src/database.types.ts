@@ -17,6 +17,7 @@ export type Database = {
       gigs: {
         Row: {
           created_at: string
+          host_token: string
           host_token_hash: string
           id: string
           name: string
@@ -24,6 +25,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          host_token: string
           host_token_hash: string
           id?: string
           name: string
@@ -31,6 +33,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          host_token?: string
           host_token_hash?: string
           id?: string
           name?: string
@@ -78,37 +81,43 @@ export type Database = {
       }
       tracks: {
         Row: {
-          content_type: string
+          content_type: string | null
           created_at: string
-          filename: string
+          filename: string | null
           id: string
           name: string
           performer_id: string
-          size_bytes: number
-          storage_path: string
+          size_bytes: number | null
+          source: string
+          storage_path: string | null
           updated_at: string
+          youtube_video_id: string | null
         }
         Insert: {
-          content_type: string
+          content_type?: string | null
           created_at?: string
-          filename: string
+          filename?: string | null
           id?: string
           name: string
           performer_id: string
-          size_bytes: number
-          storage_path: string
+          size_bytes?: number | null
+          source?: string
+          storage_path?: string | null
           updated_at?: string
+          youtube_video_id?: string | null
         }
         Update: {
-          content_type?: string
+          content_type?: string | null
           created_at?: string
-          filename?: string
+          filename?: string | null
           id?: string
           name?: string
           performer_id?: string
-          size_bytes?: number
-          storage_path?: string
+          size_bytes?: number | null
+          source?: string
+          storage_path?: string | null
           updated_at?: string
+          youtube_video_id?: string | null
         }
         Relationships: [
           {

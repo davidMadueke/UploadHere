@@ -9,6 +9,7 @@ type CopyLinkButtonProps = {
   label?: string;
   variant?: ComponentProps<typeof Button>["variant"];
   size?: ComponentProps<typeof Button>["size"];
+  className?: string;
 };
 
 export function linkFor(path: string): string {
@@ -20,6 +21,7 @@ export function CopyLinkButton({
   label = "Copy link",
   variant = "outline",
   size = "sm",
+  className,
 }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
 
@@ -35,7 +37,7 @@ export function CopyLinkButton({
   }
 
   return (
-    <Button type="button" variant={variant} size={size} onClick={copy}>
+    <Button type="button" variant={variant} size={size} className={className} onClick={copy}>
       {copied ? <CheckIcon data-icon="inline-start" /> : <LinkIcon data-icon="inline-start" />}
       {label}
     </Button>

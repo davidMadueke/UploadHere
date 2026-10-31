@@ -10,7 +10,29 @@ export function useTrackAudio(fetchUrl: TrackUrlFetcher) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
 
-  async function play(track: { id: string; name: string }, subtitle?: string) {
+  async function play(
+    track: {
+      id: string;
+      name: string;
+      source: "file" | "youtube";
+      youtubeVideoId: string | null;
+    },
+    subtitle?: string,
+  ) {
+    if (track.source === "youtube") {
+      if (!track.youtubeVideoId) {
+        toast.error("That video can't be loaded.");
+        return;
+      }
+      setNowPlaying({
+        trackId: track.id,
+        title: track.name,
+        subtitle,
+        youtubeVideoId: track.youtubeVideoId,
+      });
+      return;
+    }
+
     setLoadingTrackId(track.id);
     try {
       const { url } = await fetchUrl(track.id, false);

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "bunVersion": "1.x",
+  "services": {
+    "web": {
+      "root": "apps/web",
+      "framework": "tanstack-start",
+      "installCommand": "cd ../.. && bun install",
+      "buildCommand": "bun run build"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
+  ]
+}

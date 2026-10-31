@@ -57,8 +57,13 @@ function PlayPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-32">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <main
+      className={cn(
+        "mx-auto w-full min-w-0 max-w-5xl px-4 py-6",
+        audio.nowPlaying?.youtubeVideoId ? "pb-96" : "pb-32",
+      )}
+    >
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs tracking-wide text-muted-foreground uppercase">Playing</p>
           <h1 className="font-heading text-2xl font-semibold break-words">{gig.name}</h1>
@@ -66,6 +71,7 @@ function PlayPage() {
         <Button
           variant="outline"
           size="sm"
+          className="w-full sm:w-auto"
           nativeButton={false}
           render={<Link to="/h/$token" params={{ token }} />}
         >
@@ -82,8 +88,8 @@ function PlayPage() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
-          <nav aria-label="Running order">
+        <div className="grid min-w-0 gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
+          <nav aria-label="Running order" className="min-w-0">
             <h2 className="mb-2 text-sm font-medium text-muted-foreground">Running order</h2>
             <ol className="space-y-1">
               {performers.map((performer, index) => (
@@ -93,7 +99,7 @@ function PlayPage() {
                     onClick={() => moveTo(index)}
                     aria-current={index === currentIndex ? "step" : undefined}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition-colors",
+                      "flex w-full min-w-0 items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition-colors",
                       index === currentIndex
                         ? "bg-primary text-primary-foreground"
                         : "hover:bg-muted",
@@ -113,17 +119,18 @@ function PlayPage() {
           </nav>
 
           <section className="min-w-0 space-y-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">
                   {currentIndex + 1} of {performers.length}
                 </p>
-                <h2 className="font-heading truncate text-xl font-medium">{current.name}</h2>
+                <h2 className="font-heading text-xl font-medium break-words">{current.name}</h2>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                   disabled={currentIndex === 0}
                   onClick={() => moveTo(currentIndex - 1)}
                 >
@@ -133,6 +140,7 @@ function PlayPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                   disabled={currentIndex === performers.length - 1}
                   onClick={() => moveTo(currentIndex + 1)}
                 >
@@ -147,7 +155,7 @@ function PlayPage() {
                 <EmptyHeader>
                   <EmptyTitle>{current.name} has no Tracks</EmptyTitle>
                   <EmptyDescription>
-                    New Tracks show up here within a few seconds of being uploaded.
+                    New Tracks show up here within a few seconds of being added.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -175,7 +183,17 @@ function PlayPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Download ${track.name}`}
+                          aria-label={
+                            track.source === "youtube"
+                              ? "YouTube Tracks can't be downloaded"
+                              : `Download ${track.name}`
+                          }
+                          title={
+                            track.source === "youtube"
+                              ? "YouTube Tracks can't be downloaded"
+                              : `Download ${track.name}`
+                          }
+                          disabled={track.source === "youtube"}
                           onClick={() => audio.download(track.id)}
                         >
                           <DownloadIcon />

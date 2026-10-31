@@ -20,6 +20,16 @@ export const saveNewTrack = createServerFn({ method: "POST" })
   .validator(z.object({ token: linkTokenSchema, path: storagePath, name: nameSchema, filename }))
   .handler(({ data: { token, ...input } }) => store.saveNewTrack(token, input));
 
+const youtubeUrl = z.string().trim().min(1).max(2000);
+
+export const previewYoutubeTrack = createServerFn({ method: "POST" })
+  .validator(z.object({ token: linkTokenSchema, url: youtubeUrl }))
+  .handler(({ data }) => store.previewYoutubeTrack(data.token, data.url));
+
+export const saveYoutubeTrack = createServerFn({ method: "POST" })
+  .validator(z.object({ token: linkTokenSchema, name: nameSchema, url: youtubeUrl }))
+  .handler(({ data: { token, ...input } }) => store.saveYoutubeTrack(token, input));
+
 export const prepareReplacement = createServerFn({ method: "POST" })
   .validator(z.object({ token: linkTokenSchema, trackId: z.uuid(), filename, sizeBytes }))
   .handler(({ data: { token, ...input } }) => store.prepareReplacement(token, input));

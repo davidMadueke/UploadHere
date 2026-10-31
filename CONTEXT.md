@@ -39,7 +39,7 @@ The order of Performers on a Gig. The Host sets it and can move to any Performer
 _Avoid_: Setlist, track order
 
 **Track**:
-One uploaded WAV, MP3, or M4A file on a Performer, with a Track name. Replacing the file keeps the same Track, the Tracks on a Performer have no order, and the Performer may have none yet.
+One item a Performer adds for the Host to play: an uploaded WAV, MP3, or M4A file, or a YouTube link. Replacing the file keeps the same Track, the Tracks on a Performer have no order, and the Performer may have none yet.
 _Avoid_: Backing, Cue, Song
 
 **Track name**:
@@ -47,7 +47,7 @@ The required name typed for a Track. It is unique among that Performer's Tracks,
 _Avoid_: Filename, optional label
 
 **Filename**:
-The name of the uploaded file. It is kept on the Track, it is not the Track name, and it changes when the file is replaced.
+The name of the uploaded file on a file Track. It is not the Track name, and it changes when the file is replaced. A YouTube Track has no Filename.
 _Avoid_: Track name
 
 **Preview**:

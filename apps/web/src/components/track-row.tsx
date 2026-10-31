@@ -20,9 +20,16 @@ export function TrackRow({ track, active, actions }: TrackRowProps) {
     >
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{track.name}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {track.filename} · {formatFileSize(track.sizeBytes)}
-        </p>
+        <span className="flex w-full min-w-0 text-xs text-muted-foreground">
+          {track.source === "youtube" ? (
+            <span className="truncate">YouTube</span>
+          ) : (
+            <>
+              <span className="min-w-0 max-w-[80%] shrink truncate">{track.filename}</span>
+              <span className="shrink-0 whitespace-nowrap">{` · ${formatFileSize(track.sizeBytes)}`}</span>
+            </>
+          )}
+        </span>
       </div>
       <div className="flex shrink-0 items-center gap-1">{actions}</div>
     </li>
