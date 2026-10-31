@@ -88,7 +88,7 @@ export function NowPlayingPlayer({
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-muted-foreground">Now Playing</p>
                 <DialogTitle className="flex min-w-0 items-baseline gap-2">
-                  <span className="max-w-[60%] shrink-0 truncate text-2xl font-bold text-primary-foreground">
+                  <span className="max-w-[60%] shrink-0 truncate text-2xl font-bold text-foreground">
                     {shown.title}
                   </span>
                   {shown.artist ? (
