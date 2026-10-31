@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { LinkNotFound } from "@/components/link-not-found";
-import { NowPlayingBar } from "@/components/now-playing-bar";
+import { NowPlayingPlayer, nowPlayingOffset } from "@/components/now-playing-player";
 import { TrackRow } from "@/components/track-row";
 import { getHostTrackUrl } from "@/functions/host";
 import { useTrackAudio } from "@/hooks/use-track-audio";
@@ -60,7 +60,7 @@ function PlayPage() {
     <main
       className={cn(
         "mx-auto w-full min-w-0 max-w-5xl px-4 py-6",
-        audio.nowPlaying?.youtubeVideoId ? "pb-96" : "pb-32",
+        nowPlayingOffset(audio.nowPlaying),
       )}
     >
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
@@ -208,7 +208,13 @@ function PlayPage() {
         </div>
       )}
 
-      <NowPlayingBar nowPlaying={audio.nowPlaying} onClose={audio.stop} />
+      <NowPlayingPlayer
+        nowPlaying={audio.nowPlaying}
+        tracks={current?.tracks ?? []}
+        onPlay={(track) => audio.play(track, current?.name)}
+        onClose={audio.stop}
+        switching={audio.loadingTrackId !== null}
+      />
     </main>
   );
 }

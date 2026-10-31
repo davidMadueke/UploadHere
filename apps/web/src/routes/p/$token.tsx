@@ -30,7 +30,7 @@ import { AudioUploadField } from "@/components/audio-upload-field";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LinkNotFound } from "@/components/link-not-found";
 import { NameDialog } from "@/components/name-dialog";
-import { NowPlayingBar } from "@/components/now-playing-bar";
+import { NowPlayingPlayer, nowPlayingOffset } from "@/components/now-playing-player";
 import { TrackRow } from "@/components/track-row";
 import { UploadProgress } from "@/components/upload-progress";
 import { YoutubeLinkField } from "@/components/youtube-link-field";
@@ -92,7 +92,7 @@ function PerformerPage() {
     <main
       className={cn(
         "mx-auto w-full min-w-0 max-w-2xl space-y-6 px-4 py-8",
-        audio.nowPlaying?.youtubeVideoId ? "pb-96" : "pb-32",
+        nowPlayingOffset(audio.nowPlaying),
       )}
     >
       <section className="space-y-1">
@@ -127,9 +127,7 @@ function PerformerPage() {
                     <IconAction
                       label={`Preview ${track.name}`}
                       loading={audio.loadingTrackId === track.id}
-                      onClick={() =>
-                        audio.play(track, track.source === "file" ? track.filename : "YouTube")
-                      }
+                      onClick={() => audio.play(track, page.performerName)}
                     >
                       <PlayIcon />
                     </IconAction>
@@ -193,7 +191,13 @@ function PerformerPage() {
         onConfirm={() => removing && remove.mutate(removing.id)}
       />
 
-      <NowPlayingBar nowPlaying={audio.nowPlaying} onClose={audio.stop} />
+      <NowPlayingPlayer
+        nowPlaying={audio.nowPlaying}
+        tracks={page.tracks}
+        onPlay={(track) => audio.play(track, page.performerName)}
+        onClose={audio.stop}
+        switching={audio.loadingTrackId !== null}
+      />
     </main>
   );
 }

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import type { NowPlaying } from "@/components/now-playing-bar";
+import type { NowPlaying, PlayableTrack } from "@/components/now-playing-player";
 
 type TrackUrlFetcher = (trackId: string, download: boolean) => Promise<{ url: string }>;
 
@@ -9,25 +9,21 @@ type TrackUrlFetcher = (trackId: string, download: boolean) => Promise<{ url: st
 export function useTrackAudio(fetchUrl: TrackUrlFetcher) {
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
+  const request = useRef(0);
 
-  async function play(
-    track: {
-      id: string;
-      name: string;
-      source: "file" | "youtube";
-      youtubeVideoId: string | null;
-    },
-    subtitle?: string,
-  ) {
+  async function play(track: PlayableTrack, artist?: string) {
+    const id = ++request.current;
+    const name = artist?.trim() || undefined;
     if (track.source === "youtube") {
       if (!track.youtubeVideoId) {
         toast.error("That video can't be loaded.");
         return;
       }
+      setLoadingTrackId(null);
       setNowPlaying({
         trackId: track.id,
         title: track.name,
-        subtitle,
+        artist: name,
         youtubeVideoId: track.youtubeVideoId,
       });
       return;
@@ -36,11 +32,19 @@ export function useTrackAudio(fetchUrl: TrackUrlFetcher) {
     setLoadingTrackId(track.id);
     try {
       const { url } = await fetchUrl(track.id, false);
-      setNowPlaying({ trackId: track.id, title: track.name, subtitle, url });
+      if (request.current !== id) return;
+      setNowPlaying({
+        trackId: track.id,
+        title: track.name,
+        artist: name,
+        filename: track.filename || undefined,
+        url,
+      });
     } catch (error) {
+      if (request.current !== id) return;
       toast.error(errorMessage(error));
     } finally {
-      setLoadingTrackId(null);
+      if (request.current === id) setLoadingTrackId(null);
     }
   }
 
@@ -54,7 +58,13 @@ export function useTrackAudio(fetchUrl: TrackUrlFetcher) {
     }
   }
 
-  return { nowPlaying, loadingTrackId, play, download, stop: () => setNowPlaying(null) };
+  function stop() {
+    request.current += 1;
+    setLoadingTrackId(null);
+    setNowPlaying(null);
+  }
+
+  return { nowPlaying, loadingTrackId, play, download, stop };
 }
 
 export function errorMessage(error: unknown): string {
